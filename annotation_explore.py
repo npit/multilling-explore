@@ -23,7 +23,7 @@ noLoad = True
 if not os.path.exists('db') or noLoad :
     # start the connection #############################
     try:
-        cnx = mysql.connector.connect(user=user, password=passw,  database=database)
+        cnx = mysql.connector.connect(user=user, password=passw,  database=database, charset="utf8")
         cursor = cnx.cursor()
     except:
         print("Unable to connect to the database.")
