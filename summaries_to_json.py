@@ -21,7 +21,7 @@ def to_json(gold,summ_a, summ_b, task_descr, choices, id):
     ret["title"] = "<div>" + task_descr + "</div>"
     ret["choices"] = choices
     ret["priority"] = 5
-    ret["members"] = 3
+    ret["members"] = 5
     ret["type"] = "CHOICE"
     ret["id"] = id
     return ret
@@ -29,10 +29,9 @@ def to_json(gold,summ_a, summ_b, task_descr, choices, id):
 
 #################################
 # user settings here
-# langs_of_interest=['en','el','it','zh']
-langs_of_interest = ['zh', "el"]
-credsfile = "mysql.conf"
 
+credsfile = "mysql.conf"
+lang = "en"
 #################################
 
 creds = []
@@ -63,6 +62,7 @@ if not os.path.exists('db') or noLoad :
 
     part_fields = ["id", "name"]
     participants = get_database_values(part_fields , "participant", cursor)
+    drop_participants = ['SWAP']
 
     topic_fields = ["id", "lang_code"]
     topics = get_database_values(topic_fields, "topic", cursor)
@@ -76,6 +76,7 @@ if not os.path.exists('db') or noLoad :
         "Please, consider the following <i>Gold Summary</i> and evaluate the <b>focus</b> of the candidate summary A and candidate summary B.<br /><div style=\"font-size:smaller;text-align:left;\"><b>Focus:</b>Which summary was more focused in its content, not conveying irrelevant details? (A > B, B > A, or A &cong; B). As stated in the<a href=\"http://www-nlpir.nist.gov/projects/duc/duc2007/quality-questions.txt\"> NIST </a>evaluations: <blockquote class=\"small\"> \"The summary should have a focus; sentences should only contain information that is related to the rest of the summary.\" </blockquote>"
     ]
     metricnames = ["Responsiveness", "Non-Redundancy", "Coherence", "Focus"]
+    metricnames = ["Responsiveness"]
     metricchoices = [{
                     "A is better than B": "A > B",
                     "B is better than A": "B > A",
@@ -83,8 +84,8 @@ if not os.path.exists('db') or noLoad :
                 } for _ in metricnames]
     pairid = 0
     id_log = []
-    # generating pairs per language
-    lang = "en"
+
+
 
     rel_topics = [t['id'] for t in topics if t['lang_code'] == lang]
     rel_summaries = [s for s in summaries if int(s['topic_id']) in rel_topics]
@@ -92,18 +93,31 @@ if not os.path.exists('db') or noLoad :
     paircount = 1
 
     # get pairs per topic
-    for top in rel_topics:
+    for t,top in enumerate(rel_topics):
+        print('Processing topic %d/%d : %s' % (t+1,len(rel_topics),str(top)))
         summs = [s for s in rel_summaries if int(s['topic_id']) == top]
         sumpairs = list(combinations(summs, 2))
         # drop ones with same participant
         sumpairs = [ s for s in sumpairs if not s[0]['participant_id'] == s[1]['participant_id']]
 
+        # if we want to drop participants, get the id of the participants to drop
+        if drop_participants is not None:
+            drop_id_list = []
+            for dp in drop_participants:
+                for p in participants:
+                    if p["name"] == dp:
+                        drop_id_list.append(p["id"])
+        sumpairs = [
+            s for s in sumpairs if not (
+                (s[0]['participant_id'] in drop_id_list) or
+                (s[1]['participant_id'] in drop_id_list)
+                )]
+
         ref_sum = [ r for r in ref_summaries if r["topic_id"] == top]
 
         gold = ref_sum[0]["ref_summary"]
         for s in sumpairs:
-            if paircount > 2:
-                break
+
             print("id1: %6d | id2: %6d " % (s[0]['participant_id'], s[1]['participant_id']))
             # get ref summary for topic
             text_a = s[0]['summary']
@@ -122,7 +136,7 @@ if not os.path.exists('db') or noLoad :
                 pairid = pairid + 1
 
             paircount = paircount + 1
-        break
+
 
     taskobject["tasks"] = jsonpairsarray
     taskobject["name"] = "taskname"

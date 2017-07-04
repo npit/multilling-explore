@@ -3,3 +3,5 @@ bash
 .idea
 *.json
 *.log
+*.txt
+db

@@ -6,7 +6,8 @@ import mysql.connector
 #################################
 # user settings here
 # langs_of_interest=['en','el','it','zh']
-langs_of_interest = ['zh', "el"]
+langs_of_interest = ['el']
+
 credsfile = "mysql.conf"
 
 #################################
