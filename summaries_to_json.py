@@ -31,7 +31,7 @@ def to_json(gold,summ_a, summ_b, task_descr, choices, id):
 # user settings here
 
 credsfile = "mysql.conf"
-lang = "en"
+lang = "el"
 #################################
 
 creds = []

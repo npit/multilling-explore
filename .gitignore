@@ -5,3 +5,5 @@ bash
 *.log
 *.txt
 db
+annot_pair
+multiling_annotations_responsiveness/

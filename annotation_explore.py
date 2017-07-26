@@ -9,7 +9,8 @@ import mysql.connector
 langs_of_interest = ['el']
 
 credsfile = "mysql.conf"
-
+drop_participants = ["SWAP"]
+print_axis = ['quality']
 #################################
 
 creds = []
@@ -33,12 +34,20 @@ if not os.path.exists('db') or noLoad :
     ####################################################
 
 
+    annot_fields = ["annotator_uid","p_first_summary_id","p_second_summary_id"]
+    if print_axis:
+        annot_fields.extend(print_axis)
 
-    query = ("SELECT annotator_uid, p_first_summary_id, p_second_summary_id from annotation")
+    query = ("SELECT %s from annotation" % ", ".join(annot_fields))
     cursor.execute(query)
-    annotations = cursor.fetchall()
+    annotators = cursor.fetchall()
 
-    query = ("SELECT id, topic_id from p_summary")
+    query = ("SELECT id, name from participant")
+    cursor.execute(query)
+    participants = cursor.fetchall()
+
+
+    query = ("SELECT id, topic_id, participant_id from p_summary")
     cursor.execute(query)
     summ = cursor.fetchall()
 
@@ -65,13 +74,21 @@ if not os.path.exists('db') or noLoad :
 
         topics_per_lang[lang].append(topic)
         if not topic in sumpairs_per_topic:
-            sumpairs_per_topic[topic] = [[],[]] # summary pairs, annotations for said pairs
+            sumpairs_per_topic[topic] = [[],[],[]] # summary pairs, annotators for said pairs, annotations of axes
+
+        # drop participants - get ids
+        if drop_participants is not None:
+            drop_ids = [ x[0] for x in participants if x[1] in drop_participants]
+
 
         summaries = []
         # get all summaries for topic
         for s in summ:
             if s[1] == topic:
+                if s[2] in drop_ids:
+                    continue
                 summaries.append(s[0])
+
         # make combos of summaries
         sumpairs = list(combinations(summaries,2))
         # sort each combo
@@ -79,19 +96,24 @@ if not os.path.exists('db') or noLoad :
             l = list(sumpairs[i])
             l.sort()
             sumpairs[i] = tuple(l)
+
         # add to topic
         sumpairs_per_topic[topic][0] = sumpairs
 
         # add annotation slots
         sumpairs_per_topic[topic][1] = [ [] for j in range(len(sumpairs)) ]
+        if print_axis:
+            sumpairs_per_topic[topic][2] = [[] for j in range(len(sumpairs))]
         # get annotations per pair of topic
-        for ann in annotations:
+        for ann in annotators:
             pair = [ ann[1], ann[2]]
             pair.sort()
             pair = tuple(pair)
             if pair in sumpairs:
                 idx = sumpairs.index(pair)
                 sumpairs_per_topic[topic][1][idx].append(ann[0])
+                if print_axis:
+                    sumpairs_per_topic[topic][2][idx].append(ann[3])
 
         with open('db','wb') as f :
             pickle.dump([topics_per_lang, sumpairs_per_topic], f)
@@ -108,14 +130,17 @@ for lang in topics_per_lang:
     annotPerLangCounter = 0
     count_topic = 0
     print("LANG %s :" % lang)
+    if drop_participants is not None:
+        print("Having dropped participants: ",str(drop_participants))
     empty_topics = []
     complete_pairs = []
     for topic in topics_per_lang[lang]:
         count_topic = count_topic  + 1
         pairs_annotations = sumpairs_per_topic[topic]
         pairs = pairs_annotations[0]
-        annotations = pairs_annotations[1]
-        annotationsPerPairForTopic = list(map(len,annotations))
+        annotators = pairs_annotations[1]
+        scores = pairs_annotations[2]
+        annotationsPerPairForTopic = list(map(len, annotators))
         annotationsForTopic = sum(annotationsPerPairForTopic)
         annotPerLangCounter = annotPerLangCounter + annotationsForTopic
         print("\tTOPIC %d/%d : %d , total annotations: %d" % (count_topic, len(topics_per_lang[lang]), topic, annotationsForTopic))
@@ -123,12 +148,18 @@ for lang in topics_per_lang:
             empty_topics.append(topic)
             continue
         empty_pairs = []
-        for p in range(len(pairs)):
+        for p, pair in enumerate(pairs):
             count_pair = count_pair + 1
-            pair = pairs[p]
-            annots =  annotations[p]
+            annots =  annotators[p]
+            score = scores[p]
             print("\t\tpair %d | %d/%d : %s , annotations: %d , annotators: " % (count_pair,p+1, len(pairs), str(pair), len(annots)), end='')
-            print("%s" % annots)
+            print("%s" % annots, end='')
+
+            if print_axis is not None:
+                print("%s" % str(score),end='')
+
+            # newline
+            print()
             if len(annots) == max_annot:
                 complete_pairs.append(pair)
 
